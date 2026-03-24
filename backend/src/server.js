@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { ENV } from './config/env.js';
 import { connectDB } from './config/db.js';
-
+import bcrypt from 'bcrypt';
 // Routes
 import authRoutes       from './routes/authRoutes.js';
 import userRoutes       from './routes/userRoutes.js';
@@ -14,6 +14,7 @@ import messageRoutes    from './routes/messageRoutes.js';
 
 // Socket
 import { initSocket } from './socket/socketHandler.js';
+import { User } from './models/User.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -67,13 +68,27 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await connectDB();
+
+    // Create admin if not exists
+    const adminExists = await User.findOne({ role: 'admin' });
+    if (!adminExists) {
+      const hashed = await bcrypt.hash('admin123', 10);
+      await User.create({
+        name: 'Admin',
+        email: 'admin@gmail.com',
+        password: hashed,
+        role: 'admin',
+        isActive: true,
+      });
+      console.log('✅ Default admin created: admin@gmail.com / admin123');
+    }
+
     httpServer.listen(ENV.PORT, () => {
-      console.log(` Server + Socket.IO running on port ${ENV.PORT}`);
+      console.log(`🚀 Server running on port ${ENV.PORT}`);
     });
   } catch (err) {
     console.error('Error starting server:', err);
     process.exit(1);
   }
 };
-
 startServer();

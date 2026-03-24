@@ -22,7 +22,7 @@ export const initSocket = (io) => {
 
   io.on('connection', (socket) => {
     const userId = socket.userId;
-    console.log(`✅ Connected: ${userId}`);
+    console.log(`Connected: ${userId}`);
 
     // Track online status
     onlineUsers.set(userId, socket.id);

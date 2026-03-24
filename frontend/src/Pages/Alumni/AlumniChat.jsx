@@ -5,13 +5,13 @@ import { useSocket } from '../../hooks/useSocket';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
-const StudentMessages = () => {
+const AlumniChat = () => {
     const { userId } = useParams();
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    const [selectedAlumni, setSelectedAlumni] = useState(null);
+    const [selectedStudent, setSelectedStudent] = useState(null);
     const [message, setMessage] = useState("");
-    const [connections, setConnections] = useState([]);
+    const [students, setStudents] = useState([]);
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const messagesEndRef = useRef(null);
@@ -19,11 +19,11 @@ const StudentMessages = () => {
     const { sendMessage, onMessageReceived, onlineUsers } = useSocket();
 
     useEffect(() => {
-        fetchConnections();
+        fetchConnectedStudents();
         
         // Listen for new messages
         const unsubscribe = onMessageReceived((newMessage) => {
-            if (selectedAlumni && newMessage.sender._id === selectedAlumni._id) {
+            if (selectedStudent && newMessage.sender._id === selectedStudent._id) {
                 setMessages(prev => [...prev, newMessage]);
             }
         });
@@ -32,14 +32,14 @@ const StudentMessages = () => {
     }, []);
 
     useEffect(() => {
-        if (userId && connections.length > 0) {
-            const alumni = connections.find(c => c._id === userId);
-            if (alumni) {
-                setSelectedAlumni(alumni);
+        if (userId && students.length > 0) {
+            const student = students.find(s => s._id === userId);
+            if (student) {
+                setSelectedStudent(student);
                 fetchMessages(userId);
             }
         }
-    }, [userId, connections]);
+    }, [userId, students]);
 
     useEffect(() => {
         scrollToBottom();
@@ -49,10 +49,11 @@ const StudentMessages = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    const fetchConnections = async () => {
+    const fetchConnectedStudents = async () => {
         try {
             const response = await api.get('/connections');
-            setConnections(response.data.connections || []);
+            const connections = response.data.connections || [];
+            setStudents(connections);
             setLoading(false);
         } catch (error) {
             console.error('Error fetching connections:', error);
@@ -61,9 +62,9 @@ const StudentMessages = () => {
         }
     };
 
-    const fetchMessages = async (alumniId) => {
+    const fetchMessages = async (studentId) => {
         try {
-            const response = await api.get(`/messages/${alumniId}`);
+            const response = await api.get(`/messages/${studentId}`);
             setMessages(response.data.messages || []);
         } catch (error) {
             console.error('Error fetching messages:', error);
@@ -73,16 +74,16 @@ const StudentMessages = () => {
 
     const handleSendMessage = (e) => {
         e.preventDefault();
-        if (message.trim() && selectedAlumni) {
-            sendMessage(selectedAlumni._id, message);
+        if (message.trim() && selectedStudent) {
+            sendMessage(selectedStudent._id, message);
             setMessage("");
         }
     };
 
-    const handleSelectAlumni = (alumni) => {
-        setSelectedAlumni(alumni);
-        fetchMessages(alumni._id);
-        navigate(`/student/messages/${alumni._id}`, { replace: true });
+    const handleSelectStudent = (student) => {
+        setSelectedStudent(student);
+        fetchMessages(student._id);
+        navigate(`/alumni/chat/${student._id}`, { replace: true });
     };
 
     const handleLogout = () => {
@@ -94,28 +95,28 @@ const StudentMessages = () => {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <div className="text-center">Loading messages...</div>
+                <div className="text-center">Loading chat...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex bg-gray-50">
+        <div className="min-h-screen flex bg-gray-100">
             {/* Sidebar */}
-            <div className="w-64 bg-white border-r">
+            <div className="w-64 bg-white shadow-md">
                 <div className="p-4 border-b">
-                    <h2 className="text-xl font-bold">Student Portal</h2>
+                    <h2 className="text-xl font-bold">Alumni Portal</h2>
                     <p className="text-sm text-gray-600 mt-1">{user?.name}</p>
                 </div>
-                <nav className="p-4 space-y-2">
-                    <Link to="/student/dashboard" className="block p-3 hover:bg-gray-100 rounded">Dashboard</Link>
-                    <Link to="/student/profile" className="block p-3 hover:bg-gray-100 rounded">Profile</Link>
-                    <Link to="/student/alumni" className="block p-3 hover:bg-gray-100 rounded">Alumni</Link>
-                    <Link to="/student/events" className="block p-3 hover:bg-gray-100 rounded">Events</Link>
-                    <Link to="/student/messages" className="block p-3 bg-blue-100 rounded">Messages</Link>
+                <nav className="p-4">
+                    <Link to="/alumni/dashboard" className="block p-2 mb-2 hover:bg-gray-100 rounded">Dashboard</Link>
+                    <Link to="/alumni/profile" className="block p-2 mb-2 hover:bg-gray-100 rounded">Profile</Link>
+                    <Link to="/alumni/requests" className="block p-2 mb-2 hover:bg-gray-100 rounded">Requests</Link>
+                    <Link to="/alumni/events" className="block p-2 mb-2 hover:bg-gray-100 rounded">Events</Link>
+                    <Link to="/alumni/chat" className="block p-2 mb-2 bg-blue-100 rounded">Chat</Link>
                     <button 
                         onClick={handleLogout}
-                        className="block w-full text-left p-3 hover:bg-gray-100 rounded mt-20 text-red-600"
+                        className="block w-full text-left p-2 mt-20 hover:bg-gray-100 rounded text-red-600"
                     >
                         Logout
                     </button>
@@ -124,51 +125,51 @@ const StudentMessages = () => {
 
             {/* Chat Container */}
             <div className="flex-1 flex">
-                {/* Alumni List */}
+                {/* Students List */}
                 <div className="w-80 bg-white border-r">
                     <div className="p-4 border-b">
-                        <h2 className="font-bold">Connected Alumni</h2>
-                        <p className="text-sm text-gray-500 mt-1">{connections.length} connections</p>
+                        <h2 className="font-bold">Connected Students</h2>
+                        <p className="text-sm text-gray-500 mt-1">{students.length} connections</p>
                     </div>
                     
                     <div className="overflow-y-auto h-[calc(100vh-120px)]">
-                        {connections.length === 0 ? (
+                        {students.length === 0 ? (
                             <div className="p-8 text-center text-gray-500">
                                 No connections yet
                             </div>
                         ) : (
-                            connections.map(alumni => (
+                            students.map(student => (
                                 <div 
-                                    key={alumni._id}
-                                    onClick={() => handleSelectAlumni(alumni)}
+                                    key={student._id}
+                                    onClick={() => handleSelectStudent(student)}
                                     className={`p-4 border-b hover:bg-gray-50 cursor-pointer ${
-                                        selectedAlumni?._id === alumni._id ? 'bg-blue-50' : ''
+                                        selectedStudent?._id === student._id ? 'bg-blue-50' : ''
                                     }`}
                                 >
                                     <div className="flex justify-between items-start">
                                         <div className="flex items-start space-x-3">
-                                            {alumni.profilePicture ? (
+                                            {student.profilePicture ? (
                                                 <img 
-                                                    src={alumni.profilePicture} 
-                                                    alt={alumni.name}
+                                                    src={student.profilePicture} 
+                                                    alt={student.name}
                                                     className="h-10 w-10 rounded-full object-cover"
                                                 />
                                             ) : (
                                                 <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                                                     <span className="font-bold text-blue-600">
-                                                        {alumni.name?.charAt(0).toUpperCase()}
+                                                        {student.name?.charAt(0).toUpperCase()}
                                                     </span>
                                                 </div>
                                             )}
                                             <div>
-                                                <h3 className="font-semibold">{alumni.name}</h3>
-                                                <p className="text-xs text-gray-500">{alumni.jobTitle || 'Alumni'}</p>
-                                                {alumni.company && (
-                                                    <p className="text-xs text-gray-500">{alumni.company}</p>
+                                                <h3 className="font-semibold">{student.name}</h3>
+                                                <p className="text-xs text-gray-500 capitalize">{student.role}</p>
+                                                {student.major && (
+                                                    <p className="text-xs text-gray-500">{student.major}</p>
                                                 )}
                                             </div>
                                         </div>
-                                        {onlineUsers.has(alumni._id) && (
+                                        {onlineUsers.has(student._id) && (
                                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                         )}
                                     </div>
@@ -180,19 +181,19 @@ const StudentMessages = () => {
 
                 {/* Chat Area */}
                 <div className="flex-1 flex flex-col bg-white">
-                    {selectedAlumni ? (
+                    {selectedStudent ? (
                         <>
                             {/* Chat Header */}
                             <div className="p-4 border-b flex items-center space-x-3">
                                 <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center">
                                     <span className="text-white font-bold text-lg">
-                                        {selectedAlumni.name?.charAt(0).toUpperCase()}
+                                        {selectedStudent.name?.charAt(0).toUpperCase()}
                                     </span>
                                 </div>
                                 <div>
-                                    <h2 className="font-bold text-lg">{selectedAlumni.name}</h2>
+                                    <h2 className="font-bold text-lg">{selectedStudent.name}</h2>
                                     <p className="text-sm text-gray-500">
-                                        {onlineUsers.has(selectedAlumni._id) ? 'Online' : 'Offline'}
+                                        {onlineUsers.has(selectedStudent._id) ? 'Online' : 'Offline'}
                                     </p>
                                 </div>
                             </div>
@@ -257,8 +258,8 @@ const StudentMessages = () => {
                                 <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
-                                <p className="text-lg">Select an alumni to start chatting</p>
-                                <p className="text-sm mt-2">You have {connections.length} connected alumni</p>
+                                <p className="text-lg">Select a student to start chatting</p>
+                                <p className="text-sm mt-2">You have {students.length} connected students</p>
                             </div>
                         </div>
                     )}
@@ -268,4 +269,4 @@ const StudentMessages = () => {
     );
 };
 
-export default StudentMessages;
+export default AlumniChat;

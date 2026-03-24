@@ -63,15 +63,17 @@ export const login = async (req, res) => {
 export const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+    console.log("Email:", email);
+console.log("Password:", password);
     const user = await User.findOne({ email, role: 'admin' }).select('+password');
+    console.log(user);
     if (!user || !(await user.comparePassword(password))) {
+      console.log("Invalid admin credentials");
       return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
     }
-
     sendToken(user, 200, res);
   } catch (err) {
-    console.error('Admin login error:', err);
+    console.log('Admin login error:', err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
