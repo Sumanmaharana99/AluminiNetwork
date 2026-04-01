@@ -64,7 +64,7 @@ export const initSocket = (io) => {
     socket.on('disconnect', () => {
       onlineUsers.delete(userId);
       io.emit('user:online', { userId, online: false });
-      console.log(`❌ Disconnected: ${userId}`);
+      console.log(` Disconnected: ${userId}`);
     });
   });
 };

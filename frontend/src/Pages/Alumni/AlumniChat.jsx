@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../../Context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../hooks/useSocket';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -9,54 +9,69 @@ const AlumniChat = () => {
     const { userId } = useParams();
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [message, setMessage] = useState("");
-    const [students, setStudents] = useState([]);
+    const [connections, setConnections] = useState([]);
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
+
     const messagesEndRef = useRef(null);
-    
+    const selectedStudentRef = useRef(null);
+
     const { sendMessage, onMessageReceived, onlineUsers } = useSocket();
 
     useEffect(() => {
-        fetchConnectedStudents();
-        
-        // Listen for new messages
+        fetchConnections();
+
         const unsubscribe = onMessageReceived((newMessage) => {
-            if (selectedStudent && newMessage.sender._id === selectedStudent._id) {
-                setMessages(prev => [...prev, newMessage]);
+            const currentStudent = selectedStudentRef.current;
+            if (
+                currentStudent &&
+                (
+                    newMessage.sender._id === currentStudent._id ||
+                    newMessage.receiver._id === currentStudent._id
+                )
+            ) {
+                setMessages(prev => {
+                    const exists = prev.find(m => m._id === newMessage._id);
+                    if (exists) return prev;
+                    return [...prev, newMessage];
+                });
             }
         });
-        
+
         return () => unsubscribe();
     }, []);
 
     useEffect(() => {
-        if (userId && students.length > 0) {
-            const student = students.find(s => s._id === userId);
+        if (user) fetchConnections();
+    }, [user]);
+
+    useEffect(() => {
+        if (userId && connections.length > 0) {
+            const student = connections.find(c => c._id === userId);
             if (student) {
                 setSelectedStudent(student);
+                selectedStudentRef.current = student;
                 fetchMessages(userId);
             }
         }
-    }, [userId, students]);
+    }, [userId, connections]);
 
     useEffect(() => {
-        scrollToBottom();
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    const fetchConnectedStudents = async () => {
+    const fetchConnections = async () => {
         try {
             const response = await api.get('/connections');
-            const connections = response.data.connections || [];
-            setStudents(connections);
+            const allConnections = response.data.connections || [];
+            const filtered = allConnections.filter(c => c._id !== user?._id);
+            setConnections(filtered);
             setLoading(false);
-        } catch (error) {
-            console.error('Error fetching connections:', error);
+        } catch {
             toast.error('Failed to load connections');
             setLoading(false);
         }
@@ -66,22 +81,28 @@ const AlumniChat = () => {
         try {
             const response = await api.get(`/messages/${studentId}`);
             setMessages(response.data.messages || []);
-        } catch (error) {
-            console.error('Error fetching messages:', error);
+        } catch {
             toast.error('Failed to load messages');
         }
     };
 
-    const handleSendMessage = (e) => {
+    const handleSendMessage = async (e) => {
         e.preventDefault();
-        if (message.trim() && selectedStudent) {
+        if (!message.trim() || !selectedStudent) return;
+        setSending(true);
+        try {
             sendMessage(selectedStudent._id, message);
             setMessage("");
+        } catch {
+            toast.error('Failed to send message');
+        } finally {
+            setSending(false);
         }
     };
 
     const handleSelectStudent = (student) => {
         setSelectedStudent(student);
+        selectedStudentRef.current = student;
         fetchMessages(student._id);
         navigate(`/alumni/chat/${student._id}`, { replace: true });
     };
@@ -92,178 +113,227 @@ const AlumniChat = () => {
         toast.success('Logged out successfully');
     };
 
+    const getInitial = (name) => name?.charAt(0).toUpperCase() || '?';
+
+    const formatTime = (date) =>
+        new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <div className="text-center">Loading chat...</div>
+            <div className="h-screen flex items-center justify-center bg-slate-50">
+                <div className="flex items-center gap-3 text-slate-500">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
+                    <span className="text-sm font-medium">Loading chat…</span>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex bg-gray-100">
-            {/* Sidebar */}
-            <div className="w-64 bg-white shadow-md">
-                <div className="p-4 border-b">
-                    <h2 className="text-xl font-bold">Alumni Portal</h2>
-                    <p className="text-sm text-gray-600 mt-1">{user?.name}</p>
-                </div>
-                <nav className="p-4">
-                    <Link to="/alumni/dashboard" className="block p-2 mb-2 hover:bg-gray-100 rounded">Dashboard</Link>
-                    <Link to="/alumni/profile" className="block p-2 mb-2 hover:bg-gray-100 rounded">Profile</Link>
-                    <Link to="/alumni/requests" className="block p-2 mb-2 hover:bg-gray-100 rounded">Requests</Link>
-                    <Link to="/alumni/events" className="block p-2 mb-2 hover:bg-gray-100 rounded">Events</Link>
-                    <Link to="/alumni/chat" className="block p-2 mb-2 bg-blue-100 rounded">Chat</Link>
-                    <button 
-                        onClick={handleLogout}
-                        className="block w-full text-left p-2 mt-20 hover:bg-gray-100 rounded text-red-600"
-                    >
-                        Logout
-                    </button>
-                </nav>
-            </div>
+        <div className="flex h-screen overflow-hidden bg-slate-100">
 
-            {/* Chat Container */}
-            <div className="flex-1 flex">
-                {/* Students List */}
-                <div className="w-80 bg-white border-r">
-                    <div className="p-4 border-b">
-                        <h2 className="font-bold">Connected Students</h2>
-                        <p className="text-sm text-gray-500 mt-1">{students.length} connections</p>
+            {/* ── Sidebar ── */}
+            <aside className="w-56 bg-slate-900 flex flex-col flex-shrink-0">
+                {/* Brand */}
+                <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        A
                     </div>
-                    
-                    <div className="overflow-y-auto h-[calc(100vh-120px)]">
-                        {students.length === 0 ? (
-                            <div className="p-8 text-center text-gray-500">
-                                No connections yet
-                            </div>
-                        ) : (
-                            students.map(student => (
-                                <div 
+                    <div className="min-w-0">
+                        <p className="text-white font-semibold text-sm leading-tight">Alumni Portal</p>
+                        <p className="text-slate-500 text-xs truncate">{user?.name}</p>
+                    </div>
+                </div>
+
+                {/* Nav links */}
+                <nav className="flex flex-col gap-0.5 px-3 py-4 flex-1">
+                    {[
+                        { to: '/alumni/dashboard', label: 'Dashboard' },
+                        { to: '/alumni/profile',   label: 'Profile'   },
+                        { to: '/alumni/requests',  label: 'Requests'  },
+                        { to: '/alumni/events',    label: 'Events'    },
+                    ].map(({ to, label }) => (
+                        <Link
+                            key={to}
+                            to={to}
+                            className="block px-3 py-2 rounded-lg text-slate-400 text-sm font-medium hover:bg-white/5 hover:text-white transition-colors"
+                        >
+                            {label}
+                        </Link>
+                    ))}
+                    <Link
+                        to="/alumni/chat"
+                        className="block px-3 py-2 rounded-lg bg-blue-500/20 text-blue-400 text-sm font-semibold"
+                    >
+                        Chat
+                    </Link>
+                </nav>
+
+                <button
+                    onClick={handleLogout}
+                    className="mx-3 mb-4 px-3 py-2 rounded-lg text-left text-red-400 text-sm font-medium hover:bg-white/5 transition-colors"
+                >
+                    Logout
+                </button>
+            </aside>
+
+            {/* ── Contacts Panel ── */}
+            <div className="w-72 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
+                <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
+                    <p className="font-bold text-slate-800 text-base">Messages</p>
+                    <span className="bg-blue-50 text-blue-600 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                        {connections.length}
+                    </span>
+                </div>
+
+                <div className="overflow-y-auto flex-1">
+                    {connections.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 text-sm">
+                            No connections yet
+                        </div>
+                    ) : (
+                        connections.map(student => {
+                            const isSelected = selectedStudent?._id === student._id;
+                            const isOnline   = onlineUsers.has(student._id);
+                            return (
+                                <div
                                     key={student._id}
                                     onClick={() => handleSelectStudent(student)}
-                                    className={`p-4 border-b hover:bg-gray-50 cursor-pointer ${
-                                        selectedStudent?._id === student._id ? 'bg-blue-50' : ''
-                                    }`}
+                                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-slate-50 transition-all
+                                        ${isSelected
+                                            ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3'
+                                            : 'hover:bg-slate-50 border-l-4 border-l-transparent'
+                                        }`}
                                 >
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-start space-x-3">
-                                            {student.profilePicture ? (
-                                                <img 
-                                                    src={student.profilePicture} 
-                                                    alt={student.name}
-                                                    className="h-10 w-10 rounded-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                                    <span className="font-bold text-blue-600">
-                                                        {student.name?.charAt(0).toUpperCase()}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            <div>
-                                                <h3 className="font-semibold">{student.name}</h3>
-                                                <p className="text-xs text-gray-500 capitalize">{student.role}</p>
-                                                {student.major && (
-                                                    <p className="text-xs text-gray-500">{student.major}</p>
-                                                )}
+                                    <div className="relative flex-shrink-0">
+                                        {student.profilePicture ? (
+                                            <img src={student.profilePicture} alt={student.name} className="w-10 h-10 rounded-full object-cover" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                                                {getInitial(student.name)}
                                             </div>
-                                        </div>
-                                        {onlineUsers.has(student._id) && (
-                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        )}
+                                        {isOnline && (
+                                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
                                         )}
                                     </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* Chat Area */}
-                <div className="flex-1 flex flex-col bg-white">
-                    {selectedStudent ? (
-                        <>
-                            {/* Chat Header */}
-                            <div className="p-4 border-b flex items-center space-x-3">
-                                <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center">
-                                    <span className="text-white font-bold text-lg">
-                                        {selectedStudent.name?.charAt(0).toUpperCase()}
-                                    </span>
-                                </div>
-                                <div>
-                                    <h2 className="font-bold text-lg">{selectedStudent.name}</h2>
-                                    <p className="text-sm text-gray-500">
-                                        {onlineUsers.has(selectedStudent._id) ? 'Online' : 'Offline'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Messages */}
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                {messages.length === 0 ? (
-                                    <div className="text-center text-gray-500 py-8">
-                                        No messages yet. Start a conversation!
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-semibold text-slate-800 truncate">{student.name}</p>
+                                        <p className="text-xs text-slate-400 capitalize truncate">{student.major || student.role}</p>
                                     </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+
+            {/* ── Chat Area ── */}
+            <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                {selectedStudent ? (
+                    <>
+                        {/* Chat Header */}
+                        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-white flex-shrink-0">
+                            <div className="relative flex-shrink-0">
+                                {selectedStudent.profilePicture ? (
+                                    <img src={selectedStudent.profilePicture} alt={selectedStudent.name} className="w-10 h-10 rounded-full object-cover" />
                                 ) : (
-                                    messages.map(msg => (
-                                        <div 
-                                            key={msg._id} 
-                                            className={`flex ${msg.sender._id === user?._id ? 'justify-end' : 'justify-start'}`}
+                                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                                        {getInitial(selectedStudent.name)}
+                                    </div>
+                                )}
+                                {onlineUsers.has(selectedStudent._id) && (
+                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
+                                )}
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-800 text-sm">{selectedStudent.name}</p>
+                                <p className={`text-xs font-medium ${onlineUsers.has(selectedStudent._id) ? 'text-green-500' : 'text-slate-400'}`}>
+                                    {onlineUsers.has(selectedStudent._id) ? '● Online' : '○ Offline'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Messages */}
+                        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-slate-50 min-h-0">
+                            {messages.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
+                                    <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                    </div>
+                                    <p className="text-sm">No messages yet. Say hello!</p>
+                                </div>
+                            ) : (
+                                messages.map((msg, index) => {
+                                    const isMine = msg.sender?._id === user?._id;
+                                    return (
+                                        <div
+                                            key={msg._id || index}
+                                            className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}
                                         >
-                                            <div 
-                                                className={`max-w-md p-3 rounded-lg ${
-                                                    msg.sender._id === user?._id 
-                                                        ? 'bg-blue-600 text-white rounded-br-none' 
-                                                        : 'bg-gray-100 text-gray-800 rounded-bl-none'
-                                                }`}
-                                            >
-                                                <p>{msg.content}</p>
-                                                <p className={`text-xs mt-1 ${
-                                                    msg.sender._id === user?._id ? 'text-blue-100' : 'text-gray-500'
-                                                }`}>
-                                                    {new Date(msg.createdAt).toLocaleTimeString([], { 
-                                                        hour: '2-digit', 
-                                                        minute: '2-digit' 
-                                                    })}
+                                            {!isMine && (
+                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0 mb-1">
+                                                    {getInitial(selectedStudent.name)}
+                                                </div>
+                                            )}
+                                            <div className={`flex flex-col max-w-sm ${isMine ? 'items-end' : 'items-start'}`}>
+                                                <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed
+                                                    ${isMine
+                                                        ? 'bg-blue-600 text-white rounded-br-sm'
+                                                        : 'bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100'
+                                                    }`}
+                                                >
+                                                    {msg.content}
+                                                </div>
+                                                <p className="text-xs mt-1 px-1 text-slate-400">
+                                                    {formatTime(msg.createdAt)}
                                                 </p>
                                             </div>
                                         </div>
-                                    ))
-                                )}
-                                <div ref={messagesEndRef} />
-                            </div>
-
-                            {/* Message Input */}
-                            <form onSubmit={handleSendMessage} className="p-4 border-t">
-                                <div className="flex space-x-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Type your message..."
-                                        className="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        value={message}
-                                        onChange={(e) => setMessage(e.target.value)}
-                                    />
-                                    <button 
-                                        type="submit"
-                                        className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
-                                    >
-                                        Send
-                                    </button>
-                                </div>
-                            </form>
-                        </>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-center text-gray-500">
-                            <div className="text-center">
-                                <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                </svg>
-                                <p className="text-lg">Select a student to start chatting</p>
-                                <p className="text-sm mt-2">You have {students.length} connected students</p>
-                            </div>
+                                    );
+                                })
+                            )}
+                            <div ref={messagesEndRef} />
                         </div>
-                    )}
-                </div>
+
+                        {/* Input Bar */}
+                        <form onSubmit={handleSendMessage} className="px-4 py-3 border-t border-slate-100 bg-white flex-shrink-0">
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100 transition-all">
+                                <input
+                                    type="text"
+                                    placeholder="Type a message…"
+                                    className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none"
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={sending || !message.trim()}
+                                    className="w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
+                                >
+                                    <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13" />
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </form>
+                    </>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-slate-50 text-slate-400">
+                        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                        </div>
+                        <div className="text-center">
+                            <p className="font-semibold text-slate-600 text-sm">No conversation selected</p>
+                            <p className="text-slate-400 text-xs mt-1">Choose from {connections.length} connected students</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
