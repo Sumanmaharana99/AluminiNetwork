@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../Context/AuthContext';
 
 export const useSocket = () => {
   const { user, isAuthenticated, loading } = useAuth();
