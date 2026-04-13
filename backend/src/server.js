@@ -19,7 +19,7 @@ import { User } from './models/User.js';
 const app = express();
 const httpServer = createServer(app);
 
-// ── Socket.IO ─────────────────────────────────────────────────
+
 const io = new Server(httpServer, {
   cors: {
     origin: ENV.CLIENT_URL || 'http://localhost:3000',
@@ -31,7 +31,7 @@ const io = new Server(httpServer, {
 app.set('io', io);
 initSocket(io);
 
-// ── Middlewares ───────────────────────────────────────────────
+
 app.use(cors({
   origin: ENV.CLIENT_URL || 'http://localhost:3000',
   credentials: true,
@@ -39,7 +39,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── REST Routes ───────────────────────────────────────────────
+
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Welcome to AlumNetwork API' });
 });
@@ -50,12 +50,12 @@ app.use('/api/connections', connectionRoutes);
 app.use('/api/events',      eventRoutes);
 app.use('/api/messages',    messageRoutes);
 
-// ── 404 ───────────────────────────────────────────────────────
+
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found.' });
 });
 
-// ── Global Error Handler ──────────────────────────────────────
+
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(err.status || 500).json({
@@ -64,12 +64,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ── Start ─────────────────────────────────────────────────────
 const startServer = async () => {
   try {
     await connectDB();
-
-    // Create admin if not exists
     const adminExists = await User.findOne({ role: 'admin' });
     if (!adminExists) {
       const hashed = await bcrypt.hash('admin123', 10);
@@ -80,11 +77,11 @@ const startServer = async () => {
         role: 'admin',
         isActive: true,
       });
-      console.log('✅ Default admin created: admin@gmail.com / admin123');
+      console.log('Default admin created: admin@gmail.com / admin123');
     }
 
     httpServer.listen(ENV.PORT, () => {
-      console.log(`🚀 Server running on port ${ENV.PORT}`);
+      console.log(` Server running on port ${ENV.PORT}`);
     });
   } catch (err) {
     console.error('Error starting server:', err);

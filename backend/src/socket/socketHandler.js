@@ -28,10 +28,10 @@ export const initSocket = (io) => {
     onlineUsers.set(userId, socket.id);
     socket.join(userId); // personal room
 
-    // Tell everyone this user is online
+
     io.emit('user:online', { userId, online: true });
 
-    // ── Send Message ────────────────────────────────────────
+    
     socket.on('message:send', async ({ receiverId, content }) => {
       try {
         if (!receiverId || !content?.trim()) return;
@@ -55,12 +55,11 @@ export const initSocket = (io) => {
       }
     });
 
-    // ── Typing Indicator ────────────────────────────────────
     socket.on('typing', ({ receiverId, isTyping }) => {
       io.to(receiverId).emit('typing', { senderId: userId, isTyping });
     });
 
-    // ── Disconnect ──────────────────────────────────────────
+  
     socket.on('disconnect', () => {
       onlineUsers.delete(userId);
       io.emit('user:online', { userId, online: false });

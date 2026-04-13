@@ -14,13 +14,13 @@ export const useSocket = () => {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // 🟡 Wait until auth is ready
+    // Wait until auth is ready
     if (loading) {
       console.log('⏳ Auth loading...');
       return;
     }
 
-    // 🔴 Skip if not authenticated
+    // Skip if not authenticated
     if (!isAuthenticated || !user) {
       console.log('⏸️ Socket: Not authenticated, skipping connection');
       return;
@@ -36,7 +36,7 @@ export const useSocket = () => {
     console.log('🔌 Socket: Connecting to server...');
     console.log('👤 User ID:', user._id);
 
-    // 🔥 Create socket
+    // Create socket
     const newSocket = io('http://localhost:5000', {
       auth: { token },
       transports: ['websocket'], // more stable
@@ -46,19 +46,19 @@ export const useSocket = () => {
       reconnectionDelay: 1000,
     });
 
-    // ✅ CONNECT
+    // CONNECT
     newSocket.on('connect', () => {
       console.log('✅ Socket connected:', newSocket.id);
       setIsConnected(true);
     });
 
-    // ❌ ERROR
+    // ERROR
     newSocket.on('connect_error', (error) => {
       console.error('❌ Connection error:', error.message);
       setIsConnected(false);
     });
 
-    // ⚠️ DISCONNECT
+    // DISCONNECT
     newSocket.on('disconnect', (reason) => {
       console.log('⚠️ Disconnected:', reason);
       setIsConnected(false);
@@ -77,7 +77,7 @@ export const useSocket = () => {
       });
     });
 
-    // 📨 MESSAGE RECEIVED
+    // MESSAGE RECEIVED
     newSocket.off('message:received');
     newSocket.on('message:received', (message) => {
       console.log('📨 Message received:', message);
@@ -123,14 +123,14 @@ export const useSocket = () => {
     return true;
   };
 
-  // ✍️ TYPING INDICATOR
+  // TYPING INDICATOR
   const sendTyping = (receiverId, isTyping) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('typing', { receiverId, isTyping });
     }
   };
 
-  // 📨 LISTEN FOR MESSAGES (CUSTOM HANDLER)
+  // LISTEN FOR MESSAGES (CUSTOM HANDLER)
 const onMessageReceived = (callback) => {
   if (!socketRef.current) return () => {};
 
