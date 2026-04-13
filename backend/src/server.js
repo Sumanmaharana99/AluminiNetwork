@@ -4,7 +4,6 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { ENV } from './config/env.js';
 import { connectDB } from './config/db.js';
-import bcrypt from 'bcrypt';
 // Routes
 import authRoutes       from './routes/authRoutes.js';
 import userRoutes       from './routes/userRoutes.js';
@@ -69,11 +68,10 @@ const startServer = async () => {
     await connectDB();
     const adminExists = await User.findOne({ role: 'admin' });
     if (!adminExists) {
-      const hashed = await bcrypt.hash('admin123', 10);
       await User.create({
         name: 'Admin',
         email: 'admin@gmail.com',
-        password: hashed,
+        password: 'admin123', // Model pre-save hook handles hashing
         role: 'admin',
         isActive: true,
       });

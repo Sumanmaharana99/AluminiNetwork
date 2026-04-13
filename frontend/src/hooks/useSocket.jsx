@@ -36,7 +36,7 @@ export const useSocket = () => {
     console.log('🔌 Socket: Connecting to server...');
     console.log('👤 User ID:', user._id);
 
-    // Create socket
+    // 🔥 Create socket
     const newSocket = io('http://localhost:5000', {
       auth: { token },
       transports: ['websocket'], // more stable
@@ -64,7 +64,7 @@ export const useSocket = () => {
       setIsConnected(false);
     });
 
-    // 👤 ONLINE USERS
+    // 👤 ONLINE USERS (incremental updates)
     newSocket.off('user:online');
     newSocket.on('user:online', ({ userId, online }) => {
       console.log('👤 User', userId, online ? 'online' : 'offline');
@@ -75,6 +75,13 @@ export const useSocket = () => {
         else updated.delete(userId);
         return updated;
       });
+    });
+
+    // 👥 BULK ONLINE USERS (received on initial connection)
+    newSocket.off('users:online');
+    newSocket.on('users:online', (userIds) => {
+      console.log('👥 Currently online:', userIds);
+      setOnlineUsers(new Set(userIds));
     });
 
     // MESSAGE RECEIVED
