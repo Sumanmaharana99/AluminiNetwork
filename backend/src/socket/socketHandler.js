@@ -2,7 +2,8 @@ import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env.js';
 import { Message } from '../models/Message.js';
 
-// Track online users: userId -> socketId
+// Track online users: userId -> Set of socketIds
+// A user is "online" as long as they have at least one active socket
 const onlineUsers = new Map();
 
 export const initSocket = (io) => {
@@ -22,14 +23,22 @@ export const initSocket = (io) => {
 
   io.on('connection', (socket) => {
     const userId = socket.userId;
-    console.log(`Connected: ${userId}`);
+    console.log(`Connected: ${userId} (socket: ${socket.id})`);
 
-    // Track online status
-    onlineUsers.set(userId, socket.id);
+    // Track online status — add this socket to the user's set
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
+    }
+    onlineUsers.get(userId).add(socket.id);
+
     socket.join(userId); // personal room
 
     // Tell everyone this user is online
     io.emit('user:online', { userId, online: true });
+
+    // Send the current list of online users to the newly connected client
+    const currentOnline = Array.from(onlineUsers.keys());
+    socket.emit('users:online', currentOnline);
 
     // ── Send Message ────────────────────────────────────────
     socket.on('message:send', async ({ receiverId, content }) => {
@@ -62,9 +71,18 @@ export const initSocket = (io) => {
 
     // ── Disconnect ──────────────────────────────────────────
     socket.on('disconnect', () => {
-      onlineUsers.delete(userId);
-      io.emit('user:online', { userId, online: false });
-      console.log(` Disconnected: ${userId}`);
+      const sockets = onlineUsers.get(userId);
+      if (sockets) {
+        sockets.delete(socket.id);
+        // Only mark offline when ALL sockets for this user are gone
+        if (sockets.size === 0) {
+          onlineUsers.delete(userId);
+          io.emit('user:online', { userId, online: false });
+          console.log(`Disconnected (offline): ${userId}`);
+        } else {
+          console.log(`Disconnected (still online, ${sockets.size} remaining): ${userId}`);
+        }
+      }
     });
   });
 };

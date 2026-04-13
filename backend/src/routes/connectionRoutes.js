@@ -5,6 +5,7 @@ import {
   rejectRequest,
   getPendingRequests,
   getMyConnections,
+  getConnectionStatus,
 } from '../controllers/connectionController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -14,6 +15,7 @@ router.use(protect);
 
 router.get('/',                       getMyConnections);
 router.get('/pending',                getPendingRequests);
+router.get('/status/:userId',         getConnectionStatus);
 router.post('/request/:userId',       sendRequest);
 router.put('/accept/:connectionId',   acceptRequest);
 router.put('/reject/:connectionId',   rejectRequest);
