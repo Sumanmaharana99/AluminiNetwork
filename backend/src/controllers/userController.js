@@ -1,7 +1,4 @@
 import { User } from '../models/User.js';
-
-// @route   GET /api/users/alumni
-// @access  Private
 export const getAllAlumni = async (req, res) => {
   try {
     const alumni = await User.find({ role: 'alumni', isActive: true }).select('-password');
@@ -11,8 +8,6 @@ export const getAllAlumni = async (req, res) => {
   }
 };
 
-// @route   GET /api/users/students
-// @access  Private
 export const getAllStudents = async (req, res) => {
   try {
     const students = await User.find({ role: 'student', isActive: true }).select('-password');
@@ -22,8 +17,6 @@ export const getAllStudents = async (req, res) => {
   }
 };
 
-// @route   GET /api/users/:id
-// @access  Private
 export const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
@@ -34,8 +27,7 @@ export const getUserById = async (req, res) => {
   }
 };
 
-// @route   PUT /api/users/profile
-// @access  Private
+
 export const updateProfile = async (req, res) => {
   try {
     const forbiddenFields = ['password', 'role', 'email', 'isActive'];
@@ -53,10 +45,6 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// ── Admin only ────────────────────────────────────────────────
-
-// @route   GET /api/users
-// @access  Admin
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
@@ -66,8 +54,6 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-// @route   PUT /api/users/:id/toggle-status
-// @access  Admin
 export const toggleUserStatus = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -82,8 +68,6 @@ export const toggleUserStatus = async (req, res) => {
   }
 };
 
-// @route   DELETE /api/users/:id
-// @access  Admin
 export const deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);

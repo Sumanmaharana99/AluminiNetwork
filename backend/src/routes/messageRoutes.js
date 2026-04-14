@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.use(protect);
 
-router.get('/',        getInbox);        // GET /api/messages        → inbox list
-router.get('/:userId', getConversation); // GET /api/messages/:userId → chat history
+router.get('/', getInbox);
+router.get('/:userId', getConversation);
 
 export default router;

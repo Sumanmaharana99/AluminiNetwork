@@ -1,7 +1,5 @@
 import { Event } from '../models/Event.js';
 
-// @route   POST /api/events
-// @access  Private (alumni + admin)
 export const createEvent = async (req, res) => {
   try {
     const event = await Event.create({ ...req.body, createdBy: req.user._id });
@@ -10,9 +8,7 @@ export const createEvent = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
-
-// @route   GET /api/events
-// @access  Private
+e
 export const getEvents = async (req, res) => {
   try {
     const events = await Event.find({ isActive: true })
@@ -24,8 +20,6 @@ export const getEvents = async (req, res) => {
   }
 };
 
-// @route   GET /api/events/:id
-// @access  Private
 export const getEventById = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id)
@@ -37,8 +31,6 @@ export const getEventById = async (req, res) => {
   }
 };
 
-// @route   PUT /api/events/:id
-// @access  Private (creator or admin)
 export const updateEvent = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
@@ -56,8 +48,6 @@ export const updateEvent = async (req, res) => {
   }
 };
 
-// @route   DELETE /api/events/:id
-// @access  Private (creator or admin)
 export const deleteEvent = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);

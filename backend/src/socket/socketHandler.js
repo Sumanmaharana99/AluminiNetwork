@@ -2,13 +2,11 @@ import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env.js';
 import { Message } from '../models/Message.js';
 
-// Track online users: userId -> Set of socketIds
-// A user is "online" as long as they have at least one active socket
 const onlineUsers = new Map();
 
 export const initSocket = (io) => {
 
-  // Authenticate socket connection using JWT
+
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('No token provided'));
@@ -25,22 +23,22 @@ export const initSocket = (io) => {
     const userId = socket.userId;
     console.log(`Connected: ${userId} (socket: ${socket.id})`);
 
-    // Track online status — add this socket to the user's set
+
     if (!onlineUsers.has(userId)) {
       onlineUsers.set(userId, new Set());
     }
     onlineUsers.get(userId).add(socket.id);
 
-    socket.join(userId); // personal room
+    socket.join(userId);
 
 
     io.emit('user:online', { userId, online: true });
 
-    // Send the current list of online users to the newly connected client
+
     const currentOnline = Array.from(onlineUsers.keys());
     socket.emit('users:online', currentOnline);
 
-    // ── Send Message ────────────────────────────────────────
+
     socket.on('message:send', async ({ receiverId, content }) => {
       try {
         if (!receiverId || !content?.trim()) return;
@@ -52,7 +50,7 @@ export const initSocket = (io) => {
         });
 
         const populated = await Message.findById(message._id)
-          .populate('sender',   'name profilePicture')
+          .populate('sender', 'name profilePicture')
           .populate('receiver', 'name profilePicture');
 
         // Deliver to both sender and receiver
@@ -68,12 +66,11 @@ export const initSocket = (io) => {
       io.to(receiverId).emit('typing', { senderId: userId, isTyping });
     });
 
-  
+
     socket.on('disconnect', () => {
       const sockets = onlineUsers.get(userId);
       if (sockets) {
         sockets.delete(socket.id);
-        // Only mark offline when ALL sockets for this user are gone
         if (sockets.size === 0) {
           onlineUsers.delete(userId);
           io.emit('user:online', { userId, online: false });

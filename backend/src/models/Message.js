@@ -19,7 +19,7 @@ const messageSchema = new mongoose.Schema({
   isRead: { type: Boolean, default: false },
 }, { timestamps: true });
 
-// Index for fast conversation queries
+
 messageSchema.index({ sender: 1, receiver: 1 });
 messageSchema.index({ createdAt: -1 });
 

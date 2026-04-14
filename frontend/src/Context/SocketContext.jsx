@@ -74,7 +74,6 @@ export const SocketProvider = ({ children }) => {
 
     const socket = getSocket(token, user._id);
 
-    // ✅ Clean up any previous listeners to prevent duplicates in Strict Mode
     socket.removeAllListeners('connect');
     socket.removeAllListeners('connect_error');
     socket.removeAllListeners('disconnect');
@@ -86,17 +85,17 @@ export const SocketProvider = ({ children }) => {
     if (socket.connected) setIsConnected(true);
 
     socket.on('connect', () => {
-      console.log('✅ Socket connected:', socket.id);
+      console.log('Socket connected:', socket.id);
       setIsConnected(true);
     });
 
     socket.on('connect_error', (err) => {
-      console.error('❌ Socket connection error:', err.message);
+      console.error('Socket connection error:', err.message);
       setIsConnected(false);
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('⚠️ Socket disconnected:', reason);
+      console.log('Socket disconnected:', reason);
       if (reason === 'io server disconnect') setIsConnected(false);
     });
 
@@ -118,16 +117,13 @@ export const SocketProvider = ({ children }) => {
       _messageListeners.forEach(cb => cb(message));
     });
 
-    // ✅ Intentionally NO socket.disconnect() in cleanup.
-    // The module-level socket survives StrictMode's mount→unmount→remount.
-    return () => {};
+    return () => { };
   }, [user?._id, isAuthenticated, loading]);
 
-  // ─── Public API ─────────────────────────────────────────────────────────
 
   const sendMessage = useCallback((receiverId, content) => {
     if (!_socket?.connected) {
-      console.error('❌ Socket not connected');
+      console.error('Socket not connected');
       return false;
     }
     if (!content?.trim()) return false;
@@ -139,7 +135,6 @@ export const SocketProvider = ({ children }) => {
     _socket?.connected && _socket.emit('typing', { receiverId, isTyping });
   }, []);
 
-  // Returns an unsubscribe fn — call in useEffect cleanup
   const onMessageReceived = useCallback((callback) => {
     _messageListeners.add(callback);
     return () => _messageListeners.delete(callback);
@@ -147,7 +142,6 @@ export const SocketProvider = ({ children }) => {
 
   const isUserOnline = useCallback((userId) => onlineUsers.includes(userId), [onlineUsers]);
 
-  // Expose as Set so consumers can call .has()
   const onlineUsersSet = useMemo(() => new Set(onlineUsers), [onlineUsers]);
 
   return (

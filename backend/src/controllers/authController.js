@@ -9,8 +9,6 @@ const sendToken = (user, statusCode, res) => {
   res.status(statusCode).json({ success: true, token, user: userObj });
 };
 
-// @route   POST /api/auth/register
-// @access  Public
 export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -36,8 +34,6 @@ export const register = async (req, res) => {
   }
 };
 
-// @route   POST /api/auth/login
-// @access  Public
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -58,8 +54,6 @@ export const login = async (req, res) => {
   }
 };
 
-// @route   POST /api/auth/admin-login
-// @access  Public
 export const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -76,8 +70,6 @@ export const adminLogin = async (req, res) => {
   }
 };
 
-// @route   GET /api/auth/me
-// @access  Private
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
