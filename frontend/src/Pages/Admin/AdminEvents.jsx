@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../Context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -29,7 +29,7 @@ const AdminEvents = () => {
 
     const handleDeleteEvent = async (eventId) => {
         if (!window.confirm('Are you sure you want to delete this event?')) return;
-        
+
         try {
             await api.delete(`/events/${eventId}`);
             toast.success('Event deleted successfully');
@@ -56,7 +56,7 @@ const AdminEvents = () => {
 
     return (
         <div className="min-h-screen flex bg-gray-50">
-            {/* Sidebar */}
+
             <div className="w-64 bg-white border-r">
                 <div className="p-4 border-b">
                     <h2 className="text-xl font-bold">Admin Portal</h2>
@@ -65,7 +65,7 @@ const AdminEvents = () => {
                     <Link to="/admin/dashboard" className="block p-3 hover:bg-gray-100 rounded">Dashboard</Link>
                     <Link to="/admin/users" className="block p-3 hover:bg-gray-100 rounded">Manage Users</Link>
                     <Link to="/admin/events" className="block p-3 bg-purple-100 rounded">Manage Events</Link>
-                    <button 
+                    <button
                         onClick={handleLogout}
                         className="block w-full text-left p-3 hover:bg-gray-100 rounded mt-20"
                     >
@@ -74,10 +74,10 @@ const AdminEvents = () => {
                 </nav>
             </div>
 
-            {/* Main Content */}
+
             <div className="flex-1 p-6">
                 <h1 className="text-3xl font-bold mb-6">Manage Events</h1>
-                
+
                 {events.length === 0 ? (
                     <div className="bg-white p-8 rounded shadow text-center">
                         <p className="text-gray-500">No events found</p>

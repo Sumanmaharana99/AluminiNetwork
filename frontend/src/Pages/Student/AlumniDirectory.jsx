@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../Context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -25,7 +25,6 @@ const AlumniDirectory = () => {
             const filteredAlumni = allAlumni.filter(alum => alum._id !== user?._id);
             setAlumni(filteredAlumni);
 
-            // Fetch connection status for each alumni
             const statuses = {};
             await Promise.all(
                 filteredAlumni.map(async (alum) => {
@@ -104,19 +103,18 @@ const AlumniDirectory = () => {
                 <nav className="flex flex-col gap-0.5 px-3 py-4 flex-1">
                     {[
                         { to: '/student/dashboard', label: 'Dashboard' },
-                        { to: '/student/profile',   label: 'Profile'  },
-                        { to: '/student/alumni',    label: 'Alumni',   active: true },
-                        { to: '/student/events',    label: 'Events'   },
-                        { to: '/student/messages',  label: 'Messages' },
+                        { to: '/student/profile', label: 'Profile' },
+                        { to: '/student/alumni', label: 'Alumni', active: true },
+                        { to: '/student/events', label: 'Events' },
+                        { to: '/student/messages', label: 'Messages' },
                     ].map(({ to, label, active }) => (
                         <Link
                             key={to}
                             to={to}
-                            className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                active
+                            className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active
                                     ? 'bg-blue-500/20 text-blue-400 font-semibold'
                                     : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                            }`}
+                                }`}
                         >
                             {label}
                         </Link>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../Context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -44,11 +44,11 @@ const ManageUsers = () => {
         if (!window.confirm(`Are you sure you want to delete ${userName}? This action cannot be undone.`)) {
             return;
         }
-        
+
         try {
             await api.delete(`/users/${userId}`);
             toast.success('User deleted successfully');
-            fetchUsers(); // Refresh the list
+            fetchUsers();
         } catch (error) {
             console.error('Error deleting user:', error);
             toast.error(error.response?.data?.message || 'Failed to delete user');
@@ -61,10 +61,9 @@ const ManageUsers = () => {
         toast.success('Logged out successfully');
     };
 
-    // Filter users based on search and role
     const filteredUsers = users.filter(user => {
         const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+            user.email?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = filterRole === 'all' || user.role === filterRole;
         return matchesSearch && matchesRole;
     });
@@ -79,7 +78,6 @@ const ManageUsers = () => {
 
     return (
         <div className="min-h-screen flex bg-gray-50">
-            {/* Sidebar */}
             <div className="w-64 bg-white border-r">
                 <div className="p-4 border-b">
                     <h2 className="text-xl font-bold">Admin Portal</h2>
@@ -87,7 +85,7 @@ const ManageUsers = () => {
                 <nav className="p-4 space-y-2">
                     <Link to="/admin/dashboard" className="block p-3 hover:bg-gray-100 rounded">Dashboard</Link>
                     <Link to="/admin/users" className="block p-3 bg-purple-100 rounded">Manage Users</Link>
-                    <button 
+                    <button
                         onClick={handleLogout}
                         className="block w-full text-left p-3 hover:bg-gray-100 rounded mt-20"
                     >
@@ -96,11 +94,11 @@ const ManageUsers = () => {
                 </nav>
             </div>
 
-            {/* Main Content */}
+
             <div className="flex-1 p-6">
                 <h1 className="text-3xl font-bold mb-6">Manage Users</h1>
-                
-                {/* Filters */}
+
+
                 <div className="bg-white p-4 rounded shadow mb-6">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -128,8 +126,8 @@ const ManageUsers = () => {
                         </div>
                     </div>
                 </div>
-                
-                {/* Users Table */}
+
+
                 <div className="bg-white rounded shadow overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-gray-100">
@@ -164,18 +162,16 @@ const ManageUsers = () => {
                                         </td>
                                         <td className="p-3 text-gray-600">{user.email}</td>
                                         <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-sm ${
-                                                user.role === 'alumni' ? 'bg-blue-100 text-blue-800' : 
-                                                user.role === 'student' ? 'bg-green-100 text-green-800' : 
-                                                'bg-purple-100 text-purple-800'
-                                            }`}>
+                                            <span className={`px-2 py-1 rounded text-sm ${user.role === 'alumni' ? 'bg-blue-100 text-blue-800' :
+                                                    user.role === 'student' ? 'bg-green-100 text-green-800' :
+                                                        'bg-purple-100 text-purple-800'
+                                                }`}>
                                                 {user.role}
                                             </span>
                                         </td>
                                         <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-sm ${
-                                                user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                            }`}>
+                                            <span className={`px-2 py-1 rounded text-sm ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                                }`}>
                                                 {user.isActive ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
@@ -183,18 +179,17 @@ const ManageUsers = () => {
                                             {new Date(user.createdAt).toLocaleDateString()}
                                         </td>
                                         <td className="p-3 space-x-2">
-                                            <button 
+                                            <button
                                                 onClick={() => handleToggleStatus(user._id, user.isActive)}
-                                                className={`px-3 py-1 rounded text-sm ${
-                                                    user.isActive 
-                                                        ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' 
+                                                className={`px-3 py-1 rounded text-sm ${user.isActive
+                                                        ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
                                                         : 'bg-green-100 text-green-800 hover:bg-green-200'
-                                                }`}
+                                                    }`}
                                             >
                                                 {user.isActive ? 'Deactivate' : 'Activate'}
                                             </button>
                                             {user.role !== 'admin' && (
-                                                <button 
+                                                <button
                                                     onClick={() => handleDeleteUser(user._id, user.name)}
                                                     className="bg-red-100 text-red-800 px-3 py-1 rounded text-sm hover:bg-red-200"
                                                 >
@@ -208,8 +203,7 @@ const ManageUsers = () => {
                         </tbody>
                     </table>
                 </div>
-                
-                {/* Stats Summary */}
+
                 <div className="mt-6 grid grid-cols-3 gap-4">
                     <div className="bg-white p-4 rounded shadow text-center">
                         <p className="text-gray-600">Total Users</p>

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../../Context/AuthContext';
-import { useSocket } from '../../hooks/useSocket';
+import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -9,108 +9,137 @@ const StudentMessages = () => {
     const { userId } = useParams();
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+
     const [selectedAlumni, setSelectedAlumni] = useState(null);
-    const [message, setMessage] = useState("");
+    const [message, setMessage] = useState('');
     const [connections, setConnections] = useState([]);
     const [messages, setMessages] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingConnections, setLoadingConnections] = useState(true);
+    const [loadingMessages, setLoadingMessages] = useState(false);
     const [sending, setSending] = useState(false);
     const [unreadMessages, setUnreadMessages] = useState({});
+
     const messagesEndRef = useRef(null);
     const selectedAlumniRef = useRef(null);
+    const fetchSeqRef = useRef(0);
+    const lastFetchedUserIdRef = useRef(null);
 
     const { sendMessage, onMessageReceived, onlineUsers } = useSocket();
 
     useEffect(() => {
-        fetchConnections();
-
         const unsubscribe = onMessageReceived((newMessage) => {
             const currentAlumni = selectedAlumniRef.current;
-            const senderId = newMessage.sender._id;
-            const isFromCurrentChat = currentAlumni &&
-                (senderId === currentAlumni._id || newMessage.receiver._id === currentAlumni._id);
+            const senderId = newMessage.sender?._id;
+            const receiverId = newMessage.receiver?._id;
+
+            const isFromCurrentChat = currentAlumni && (
+                (senderId === currentAlumni._id && receiverId === user?._id) ||
+                (senderId === user?._id && receiverId === currentAlumni._id)
+            );
 
             if (isFromCurrentChat) {
                 setMessages(prev => {
-                    // Remove optimistic temp messages when real message arrives
-                    const filtered = prev.filter(m => !String(m._id).startsWith('temp-'));
-                    const exists = filtered.find(m => m._id === newMessage._id);
-                    if (exists) return filtered;
-                    return [...filtered, newMessage];
+                    if (prev.find(m => m._id === newMessage._id)) return prev;
+
+                    if (senderId === user?._id) {
+                        const tempIndex = prev.findIndex(m => String(m._id).startsWith('temp-') && m.content === newMessage.content);
+                        if (tempIndex !== -1) {
+                            const newMessages = [...prev];
+                            newMessages[tempIndex] = newMessage;
+                            return newMessages;
+                        }
+                    }
+
+
+                    return [...prev, newMessage];
                 });
             } else if (senderId !== user?._id) {
-                // Message from a different contact — show unread bubble + toast
                 setUnreadMessages(prev => ({
                     ...prev,
-                    [senderId]: (prev[senderId] || 0) + 1
+                    [senderId]: (prev[senderId] || 0) + 1,
                 }));
                 const senderName = newMessage.sender?.name || 'Someone';
-                toast(`💬 ${senderName}: ${newMessage.content?.substring(0, 40)}${newMessage.content?.length > 40 ? '…' : ''}`, { icon: '📩' });
+                toast(`${senderName}: ${newMessage.content?.substring(0, 40)}${newMessage.content?.length > 40 ? '…' : ''}`, { icon: '📩' });
             }
-            fetchConnections();
         });
-
         return () => unsubscribe();
-    }, []);
+    }, [user?._id, onMessageReceived]);
 
     useEffect(() => {
-        if (userId && connections.length > 0) {
-            const alumni = connections.find(c => c._id === userId);
-            if (alumni) {
-                setSelectedAlumni(alumni);
-                selectedAlumniRef.current = alumni;
-                fetchMessages(userId);
+        if (!user?._id) return;
+        const fetchConnections = async () => {
+            try {
+                setLoadingConnections(true);
+                const response = await api.get('/connections');
+                const all = response.data.connections || [];
+                setConnections(all.filter(c => c._id !== user._id));
+            } catch (error) {
+                console.error('Error fetching connections:', error);
+                toast.error('Failed to load connections');
+            } finally {
+                setLoadingConnections(false);
             }
-        }
-    }, [userId, connections]);
+        };
+        fetchConnections();
+    }, [user?._id]);
+
+    useEffect(() => {
+        if (!userId || connections.length === 0) return;
+        if (userId === user?._id) { navigate('/student/messages', { replace: true }); return; }
+
+        const alumni = connections.find(c => c._id === userId);
+        if (!alumni) return;
+
+        if (lastFetchedUserIdRef.current === userId) return;
+        lastFetchedUserIdRef.current = userId;
+
+        setSelectedAlumni(alumni);
+        selectedAlumniRef.current = alumni;
+        doFetchMessages(alumni._id);
+    }, [userId, connections, user?._id]);
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const fetchConnections = async () => {
-        try {
-            const response = await api.get('/connections');
-            const connectedUsers = response.data.connections || [];
-            setConnections(connectedUsers);
-            setLoading(false);
-        } catch (error) {
-            console.error('Error fetching connections:', error);
-            toast.error('Failed to load connections');
-            setLoading(false);
-        }
-    };
 
-    const fetchMessages = async (alumniId) => {
+    const doFetchMessages = useCallback(async (alumniId) => {
+        const seq = ++fetchSeqRef.current;
+        setLoadingMessages(true);
+        setMessages([]);
         try {
             const response = await api.get(`/messages/${alumniId}`);
-            setMessages(response.data.messages || []);
+            if (seq === fetchSeqRef.current) setMessages(response.data.messages || []);
         } catch (error) {
-            console.error('Error fetching messages:', error);
-            toast.error('Failed to load messages');
+            if (seq === fetchSeqRef.current) {
+                console.error('Error fetching messages:', error);
+                toast.error('Failed to load messages');
+            }
+        } finally {
+            if (seq === fetchSeqRef.current) setLoadingMessages(false);
         }
-    };
+    }, []);
+
 
     const handleSendMessage = async (e) => {
-        e.preventDefault();
+        e?.preventDefault();
         if (!message.trim() || !selectedAlumni) return;
-
+        const trimmed = message.trim();
         setSending(true);
+        setMessage('');
         try {
-            const trimmed = message.trim();
             const sent = sendMessage(selectedAlumni._id, trimmed);
             if (sent) {
-                // Optimistic update with temp ID for deduplication
                 setMessages(prev => [...prev, {
                     _id: `temp-${Date.now()}`,
                     content: trimmed,
                     sender: { _id: user._id, name: user.name, profilePicture: user.profilePicture },
                     receiver: { _id: selectedAlumni._id },
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 }]);
             }
-            setMessage("");
-        } catch (error) {
+        } catch {
             toast.error('Failed to send message');
         } finally {
             setSending(false);
@@ -118,46 +147,30 @@ const StudentMessages = () => {
     };
 
     const handleSelectAlumni = (alumni) => {
-        setSelectedAlumni(alumni);
-        selectedAlumniRef.current = alumni;
-        fetchMessages(alumni._id);
-        // Clear unread count for this contact
-        setUnreadMessages(prev => {
-            const updated = { ...prev };
-            delete updated[alumni._id];
-            return updated;
-        });
+        if (alumni._id === user?._id) return;
+        if (selectedAlumni?._id === alumni._id) return;
+        setUnreadMessages(prev => { const u = { ...prev }; delete u[alumni._id]; return u; });
         navigate(`/student/messages/${alumni._id}`, { replace: true });
     };
 
-    const handleLogout = () => {
-        logout();
-        navigate('/');
-        toast.success('Logged out successfully');
-    };
-
+    const handleLogout = () => { logout(); navigate('/'); toast.success('Logged out successfully'); };
     const getInitial = (name) => name?.charAt(0).toUpperCase() || '?';
+    const formatTime = (date) => new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const formatTime = (date) =>
-        new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    if (loading) {
-        return (
-            <div className="h-screen flex items-center justify-center bg-slate-50">
-                <div className="flex items-center gap-3 text-slate-500">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
-                    <span className="text-sm font-medium">Loading messages…</span>
-                </div>
+    if (loadingConnections) return (
+        <div className="h-screen flex items-center justify-center bg-slate-50">
+            <div className="flex items-center gap-3 text-slate-500">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
+                <span className="text-sm font-medium">Loading messages…</span>
             </div>
-        );
-    }
+        </div>
+    );
 
     return (
         <div className="flex h-screen overflow-hidden bg-slate-100">
 
-            {/* ── Sidebar ── */}
+            {/* Sidebar */}
             <aside className="w-56 bg-slate-900 flex flex-col flex-shrink-0">
-                {/* Brand */}
                 <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
                     <img src="/AlumConnectLogo.png" alt="AlumConnect" className="w-8 h-8 rounded-lg object-contain bg-white flex-shrink-0" />
                     <div className="min-w-0">
@@ -165,114 +178,65 @@ const StudentMessages = () => {
                         <p className="text-slate-500 text-xs truncate">{user?.name}</p>
                     </div>
                 </div>
-
-                {/* Nav links */}
                 <nav className="flex flex-col gap-0.5 px-3 py-4 flex-1">
                     {[
                         { to: '/student/dashboard', label: 'Dashboard' },
-                        { to: '/student/profile',   label: 'Profile'   },
-                        { to: '/student/alumni',    label: 'Alumni'    },
-                        { to: '/student/events',    label: 'Events'    },
-                    ].map(({ to, label }) => (
-                        <Link
-                            key={to}
-                            to={to}
-                            className="block px-3 py-2 rounded-lg text-slate-400 text-sm font-medium hover:bg-white/5 hover:text-white transition-colors"
-                        >
-                            {label}
-                        </Link>
+                        { to: '/student/profile', label: 'Profile' },
+                        { to: '/student/alumni', label: 'Alumni' },
+                        { to: '/student/events', label: 'Events' },
+                        { to: '/student/messages', label: 'Messages', active: true },
+                    ].map(({ to, label, active }) => (
+                        <Link key={to} to={to} className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-blue-500/20 text-blue-400 font-semibold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>{label}</Link>
                     ))}
-                    <Link
-                        to="/student/messages"
-                        className="block px-3 py-2 rounded-lg bg-blue-500/20 text-blue-400 text-sm font-semibold"
-                    >
-                        Messages
-                    </Link>
                 </nav>
-
-                <button
-                    onClick={handleLogout}
-                    className="mx-3 mb-4 px-3 py-2 rounded-lg text-left text-red-400 text-sm font-medium hover:bg-white/5 transition-colors"
-                >
-                    Logout
-                </button>
+                <button onClick={handleLogout} className="mx-3 mb-4 px-3 py-2 rounded-lg text-left text-red-400 text-sm font-medium hover:bg-white/5 transition-colors">Logout</button>
             </aside>
 
-            {/* ── Contacts Panel ── */}
+            {/* Contacts */}
             <div className="w-72 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
                 <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
                     <p className="font-bold text-slate-800 text-base">Messages</p>
-                    <span className="bg-blue-50 text-blue-600 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                        {connections.length}
-                    </span>
+                    <span className="bg-blue-50 text-blue-600 text-xs font-semibold px-2.5 py-0.5 rounded-full">{connections.length}</span>
                 </div>
-
                 <div className="overflow-y-auto flex-1">
                     {connections.length === 0 ? (
-                        <div className="p-8 text-center text-slate-400 text-sm">
-                            No connections yet
-                        </div>
-                    ) : (
-                        connections.map(alumni => {
-                            const isSelected = selectedAlumni?._id === alumni._id;
-                            const isOnline   = onlineUsers.has(alumni._id);
-                            return (
-                                <div
-                                    key={alumni._id}
-                                    onClick={() => handleSelectAlumni(alumni)}
-                                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-slate-50 transition-all
-                                        ${isSelected
-                                            ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3'
-                                            : 'hover:bg-slate-50 border-l-4 border-l-transparent'
-                                        }`}
-                                >
-                                    <div className="relative flex-shrink-0">
-                                        {alumni.profilePicture ? (
-                                            <img src={alumni.profilePicture} alt={alumni.name} className="w-10 h-10 rounded-full object-cover" />
-                                        ) : (
-                                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
-                                                {getInitial(alumni.name)}
-                                            </div>
-                                        )}
-                                        {isOnline && (
-                                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
-                                        )}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-semibold text-slate-800 truncate">{alumni.name}</p>
-                                        <p className="text-xs text-slate-400 truncate">
-                                            {alumni.company || alumni.role}
-                                        </p>
-                                    </div>
-                                    {unreadMessages[alumni._id] > 0 && (
-                                        <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
-                                            {unreadMessages[alumni._id]}
-                                        </span>
-                                    )}
+                        <div className="p-8 text-center text-slate-400 text-sm">No connections yet</div>
+                    ) : connections.map(alumni => {
+                        const isSelected = selectedAlumni?._id === alumni._id;
+                        const isOnline = onlineUsers.has(alumni._id);
+                        return (
+                            <div key={alumni._id} onClick={() => handleSelectAlumni(alumni)}
+                                className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-slate-50 transition-all ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3' : 'hover:bg-slate-50 border-l-4 border-l-transparent'}`}>
+                                <div className="relative flex-shrink-0">
+                                    {alumni.profilePicture
+                                        ? <img src={alumni.profilePicture} alt={alumni.name} className="w-10 h-10 rounded-full object-cover" />
+                                        : <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">{getInitial(alumni.name)}</div>}
+                                    {isOnline && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />}
                                 </div>
-                            );
-                        })
-                    )}
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{alumni.name}</p>
+                                    <p className="text-xs text-slate-400 truncate">{alumni.company || alumni.role}</p>
+                                </div>
+                                {unreadMessages[alumni._id] > 0 && (
+                                    <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">{unreadMessages[alumni._id]}</span>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* ── Chat Area ── */}
+            {/* Chat area */}
             <div className="flex-1 flex flex-col bg-white overflow-hidden">
                 {selectedAlumni ? (
                     <>
-                        {/* Chat Header */}
+                        {/* Header */}
                         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-white flex-shrink-0">
                             <div className="relative flex-shrink-0">
-                                {selectedAlumni.profilePicture ? (
-                                    <img src={selectedAlumni.profilePicture} alt={selectedAlumni.name} className="w-10 h-10 rounded-full object-cover" />
-                                ) : (
-                                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-                                        {getInitial(selectedAlumni.name)}
-                                    </div>
-                                )}
-                                {onlineUsers.has(selectedAlumni._id) && (
-                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
-                                )}
+                                {selectedAlumni.profilePicture
+                                    ? <img src={selectedAlumni.profilePicture} alt={selectedAlumni.name} className="w-10 h-10 rounded-full object-cover" />
+                                    : <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{getInitial(selectedAlumni.name)}</div>}
+                                {onlineUsers.has(selectedAlumni._id) && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />}
                             </div>
                             <div>
                                 <p className="font-bold text-slate-800 text-sm">{selectedAlumni.name}</p>
@@ -284,7 +248,12 @@ const StudentMessages = () => {
 
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-slate-50 min-h-0">
-                            {messages.length === 0 ? (
+                            {loadingMessages ? (
+                                <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
+                                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" />
+                                    <p className="text-xs">Loading messages…</p>
+                                </div>
+                            ) : messages.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
                                     <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
                                         <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,41 +262,29 @@ const StudentMessages = () => {
                                     </div>
                                     <p className="text-sm">No messages yet. Say hello!</p>
                                 </div>
-                            ) : (
-                                messages.map((msg, index) => {
-                                    const isMine = msg.sender?._id === user?._id;
-                                    return (
-                                        <div
-                                            key={msg._id || index}
-                                            className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}
-                                        >
-                                            {!isMine && (
-                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0 mb-1">
-                                                    {getInitial(selectedAlumni.name)}
-                                                </div>
-                                            )}
-                                            <div className={`flex flex-col max-w-sm ${isMine ? 'items-end' : 'items-start'}`}>
-                                                <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed
-                                                    ${isMine
-                                                        ? 'bg-blue-600 text-white rounded-br-sm'
-                                                        : 'bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100'
-                                                    }`}
-                                                >
-                                                    {msg.content}
-                                                </div>
-                                                <p className="text-xs mt-1 px-1 text-slate-400">
-                                                    {formatTime(msg.createdAt)}
-                                                </p>
+                            ) : messages.map((msg, index) => {
+                                const isMine = msg.sender?._id === user?._id;
+                                return (
+                                    <div key={msg._id || index} className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+                                        {!isMine && (
+                                            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0 mb-1">
+                                                {getInitial(selectedAlumni.name)}
                                             </div>
+                                        )}
+                                        <div className={`flex flex-col max-w-sm ${isMine ? 'items-end' : 'items-start'}`}>
+                                            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isMine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100'}`}>
+                                                {msg.content}
+                                            </div>
+                                            <p className="text-xs mt-1 px-1 text-slate-400">{formatTime(msg.createdAt)}</p>
                                         </div>
-                                    );
-                                })
-                            )}
+                                    </div>
+                                );
+                            })}
                             <div ref={messagesEndRef} />
                         </div>
 
-                        {/* Input Bar */}
-                        <form onSubmit={handleSendMessage} className="px-4 py-3 border-t border-slate-100 bg-white flex-shrink-0">
+                        {/* Input */}
+                        <div className="px-4 py-3 border-t border-slate-100 bg-white flex-shrink-0">
                             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100 transition-all">
                                 <input
                                     type="text"
@@ -335,9 +292,10 @@ const StudentMessages = () => {
                                     className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none"
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) handleSendMessage(e); }}
                                 />
                                 <button
-                                    type="submit"
+                                    onClick={handleSendMessage}
                                     disabled={sending || !message.trim()}
                                     className="w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
                                 >
@@ -347,7 +305,7 @@ const StudentMessages = () => {
                                     </svg>
                                 </button>
                             </div>
-                        </form>
+                        </div>
                     </>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-slate-50 text-slate-400">

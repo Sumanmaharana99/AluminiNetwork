@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../Context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -24,8 +24,8 @@ const AdminDashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            
-            // Fetch all data in parallel
+
+
             const [usersRes, alumniRes, studentsRes, eventsRes, connectionsRes] = await Promise.all([
                 api.get('/users'),
                 api.get('/users/alumni'),
@@ -33,7 +33,7 @@ const AdminDashboard = () => {
                 api.get('/events'),
                 api.get('/connections/pending')
             ]);
-            
+
             setStats({
                 totalUsers: usersRes.data.users?.length || 0,
                 alumni: alumniRes.data.alumni?.length || 0,
@@ -41,8 +41,8 @@ const AdminDashboard = () => {
                 activeEvents: eventsRes.data.events?.length || 0,
                 pendingConnections: connectionsRes.data.requests?.length || 0
             });
-            
-            // Get recent users (last 5)
+
+
             const recentUsers = usersRes.data.users?.slice(0, 5) || [];
             setRecentActivity(recentUsers.map(user => ({
                 id: user._id,
@@ -50,7 +50,7 @@ const AdminDashboard = () => {
                 role: user.role,
                 time: new Date(user.createdAt).toLocaleDateString()
             })));
-            
+
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
             toast.error('Failed to load dashboard data');
@@ -83,7 +83,7 @@ const AdminDashboard = () => {
                 <nav className="p-4 space-y-2">
                     <Link to="/admin/dashboard" className="block p-3 bg-purple-100 rounded">Dashboard</Link>
                     <Link to="/admin/users" className="block p-3 hover:bg-gray-100 rounded">Manage Users</Link>
-                    <button 
+                    <button
                         onClick={handleLogout}
                         className="block w-full text-left p-3 hover:bg-gray-100 rounded mt-20"
                     >
@@ -91,12 +91,12 @@ const AdminDashboard = () => {
                     </button>
                 </nav>
             </div>
-            
-            {/* Main Content */}
+
+
             <div className="flex-1 p-6">
                 <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
-                
-                {/* Stats Cards */}
+
+
                 <div className="grid grid-cols-3 gap-4 mb-8">
                     <div className="bg-white p-4 rounded shadow">
                         <p className="text-gray-600">Total Users</p>
@@ -112,7 +112,7 @@ const AdminDashboard = () => {
                         <p className="text-2xl font-bold">{stats.pendingConnections}</p>
                     </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-6">
                     <div>
                         <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
@@ -125,7 +125,7 @@ const AdminDashboard = () => {
                             </Link>
                         </div>
                     </div>
-                    
+
                     <div>
                         <h2 className="text-xl font-bold mb-4">Recent Users</h2>
                         <div className="space-y-3">

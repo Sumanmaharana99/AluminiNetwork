@@ -1,30 +1,32 @@
 import { Connection } from '../models/Connection.js';
 import { User } from '../models/User.js';
 
-// @route   POST /api/connections/request/:userId
-// @access  Private
 export const sendRequest = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Check if trying to connect to self
     if (userId === req.user._id.toString()) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "You cannot send a connection request to yourself." 
+      return res.status(400).json({
+        success: false,
+        message: "You cannot send a connection request to yourself."
       });
     }
 
-    // Check if user exists
     const targetUser = await User.findById(userId);
     if (!targetUser) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found." 
+      return res.status(404).json({
+        success: false,
+        message: "User not found."
+      });
+    }
+    if (req.user.role === targetUser.role) {
+      return res.status(400).json({
+        success: false,
+        message: `${req.user.role}s cannot connect with other ${req.user.role}s.`
       });
     }
 
-    // Check if already connected or request exists
+
     const existingConnection = await Connection.findOne({
       $or: [
         { requester: req.user._id, recipient: userId },
@@ -55,8 +57,6 @@ export const sendRequest = async (req, res) => {
   }
 };
 
-// @route   PUT /api/connections/accept/:connectionId
-// @access  Private
 export const acceptRequest = async (req, res) => {
   try {
     const connection = await Connection.findById(req.params.connectionId);
@@ -71,24 +71,23 @@ export const acceptRequest = async (req, res) => {
     connection.status = 'accepted';
     await connection.save();
 
-    // Add each other to connections list (avoid duplicates)
     await User.findByIdAndUpdate(
-      connection.requester, 
+      connection.requester,
       { $addToSet: { connections: connection.recipient } }
     );
     await User.findByIdAndUpdate(
-      connection.recipient, 
+      connection.recipient,
       { $addToSet: { connections: connection.requester } }
     );
 
-    // Fetch the updated user to return proper data
+
     const updatedUser = await User.findById(req.user._id)
       .populate('connections', 'name profilePicture role company');
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       message: 'Connection accepted.',
-      connections: updatedUser.connections 
+      connections: updatedUser.connections
     });
   } catch (err) {
     console.error('Accept request error:', err);
@@ -96,8 +95,6 @@ export const acceptRequest = async (req, res) => {
   }
 };
 
-// @route   PUT /api/connections/reject/:connectionId
-// @access  Private
 export const rejectRequest = async (req, res) => {
   try {
     const connection = await Connection.findById(req.params.connectionId);
@@ -119,15 +116,13 @@ export const rejectRequest = async (req, res) => {
   }
 };
 
-// @route   GET /api/connections/pending
-// @access  Private
 export const getPendingRequests = async (req, res) => {
   try {
-    const requests = await Connection.find({ 
-      recipient: req.user._id, 
-      status: 'pending' 
+    const requests = await Connection.find({
+      recipient: req.user._id,
+      status: 'pending'
     }).populate('requester', 'name profilePicture role company major');
-    
+
     res.status(200).json({ success: true, requests });
   } catch (err) {
     console.error('Get pending requests error:', err);
@@ -135,47 +130,45 @@ export const getPendingRequests = async (req, res) => {
   }
 };
 
-// @route   GET /api/connections
-// @access  Private
 export const getMyConnections = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .populate('connections', 'name profilePicture role company major email _id');
-    
-    // Filter out any null values
-    const connections = user.connections.filter(conn => conn !== null);
-    
-    res.status(200).json({ success: true, connections });
+
+    const connections = (user.connections || []).filter(conn => conn !== null);
+
+    const expectedRole = user.role === 'alumni' ? 'student' : 'alumni';
+    const filtered = connections.filter(conn => conn.role === expectedRole);
+
+    res.status(200).json({ success: true, connections: filtered });
   } catch (err) {
     console.error('Get connections error:', err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
 
-// @route   GET /api/connections/status/:userId
-// @access  Private
 export const getConnectionStatus = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const connection = await Connection.findOne({
       $or: [
         { requester: req.user._id, recipient: userId },
         { requester: userId, recipient: req.user._id },
       ],
     });
-    
+
     let status = 'none';
     if (connection) {
       if (connection.status === 'pending') {
-        status = connection.requester.toString() === req.user._id.toString() 
-          ? 'request_sent' 
+        status = connection.requester.toString() === req.user._id.toString()
+          ? 'request_sent'
           : 'request_received';
       } else if (connection.status === 'accepted') {
         status = 'connected';
       }
     }
-    
+
     res.status(200).json({ success: true, status });
   } catch (err) {
     console.error('Get connection status error:', err);
